@@ -409,7 +409,8 @@
             <div class="form-group">
                 <label for="github-token">GitHub Personal Access Token</label>
                 <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
-                <div class="help-text">Generate at: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens</div>
+                <div class="help-text" style="color: #dc3545; font-weight: 500;">⚠️ IMPORTANT: Use Classic Token (not Fine-grained) with 'repo' scope</div>
+                <div class="help-text">GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)</div>
             </div>
 
             <div class="form-group">
@@ -438,6 +439,7 @@
             <div class="btn-group">
                 <button class="btn btn-github" onclick="saveGitHubConfig()">💾 Save Configuration</button>
                 <button class="btn btn-primary" onclick="testGitHubConnection()">🔍 Test Connection</button>
+                <button class="btn btn-secondary" onclick="showModal('token-help-modal')" style="background: #17a2b8;">❓ Token Setup Help</button>
                 <button class="btn btn-danger" onclick="clearConfig()">🗑️ Clear Config</button>
             </div>
         </div>
@@ -483,6 +485,50 @@
             <div id="upload-status"></div>
             <div class="progress-bar">
                 <div class="progress-fill" id="progress-fill">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Setup Help Modal -->
+    <div class="modal" id="token-help-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">🔑 GitHub Token Setup Guide</h3>
+                <button class="close-btn" onclick="hideModal('token-help-modal')">×</button>
+            </div>
+            <div>
+                <div class="alert alert-info">
+                    <strong>⚠️ Important:</strong> You MUST use a Classic Personal Access Token (not Fine-grained) with the 'repo' scope.
+                </div>
+
+                <h4 style="margin: 1.5rem 0 1rem; color: var(--primary-color);">Step-by-Step Instructions:</h4>
+                
+                <ol style="line-height: 2; padding-left: 1.5rem;">
+                    <li>Go to <a href="https://github.com/settings/tokens" target="_blank" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">GitHub.com → Settings → Developer settings → Personal access tokens</a></li>
+                    <li>Click <strong>"Tokens (classic)"</strong> (NOT Fine-grained tokens)</li>
+                    <li>Click <strong>"Generate new token (classic)"</strong></li>
+                    <li>Enter a note: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">SecureShare Token</code></li>
+                    <li>Select expiration (recommend 90 days or No expiration)</li>
+                    <li><strong>✅ Check the "repo" scope</strong> (this gives full repository access)</li>
+                    <li>Scroll down and click <strong>"Generate token"</strong></li>
+                    <li><strong>📋 Copy the token immediately</strong> (you won't see it again!)</li>
+                    <li>Paste the token in the configuration above</li>
+                </ol>
+
+                <h4 style="margin: 1.5rem 0 1rem; color: var(--primary-color);">Required Permissions:</h4>
+                <ul style="line-height: 2; padding-left: 1.5rem;">
+                    <li>✅ <strong>repo</strong> - Full control of private repositories (includes public repos)</li>
+                </ul>
+
+                <div class="alert alert-error" style="margin-top: 1.5rem;">
+                    <strong>❌ Common Mistakes:</strong><br>
+                    • Using Fine-grained token (use Classic instead)<br>
+                    • Not selecting "repo" scope<br>
+                    • Token expired<br>
+                    • Repository doesn't exist or no access
+                </div>
+
+                <button class="btn btn-primary" onclick="hideModal('token-help-modal')" style="margin-top: 1rem; width: 100%;">👍 Got It!</button>
             </div>
         </div>
     </div>
@@ -570,8 +616,9 @@
             try {
                 const response = await fetch(`https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}`, {
                     headers: {
-                        'Authorization': `token ${githubConfig.token}`,
-                        'Accept': 'application/vnd.github.v3+json'
+                        'Authorization': `Bearer ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
                     }
                 });
 
@@ -580,7 +627,12 @@
                     showAlert(`✅ Connected to ${repo.full_name}!`, 'success');
                     updateGitHubStatus(true);
                 } else {
-                    showAlert(`❌ Connection failed: ${response.statusText}`, 'error');
+                    const error = await response.json();
+                    let errorMsg = error.message || response.statusText;
+                    if (response.status === 403 || response.status === 401) {
+                        errorMsg += ' - Check token permissions (needs repo scope)';
+                    }
+                    showAlert(`❌ Connection failed: ${errorMsg}`, 'error');
                     updateGitHubStatus(false);
                 }
             } catch (error) {
@@ -740,9 +792,10 @@
                 const response = await fetch(`https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/${path}`, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${githubConfig.token}`,
+                        'Authorization': `Bearer ${githubConfig.token}`,
                         'Content-Type': 'application/json',
-                        'Accept': 'application/vnd.github.v3+json'
+                        'Accept': 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
                     },
                     body: JSON.stringify({
                         message: `Upload ${file.name} via SecureShare`,
